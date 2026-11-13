@@ -8,21 +8,28 @@ BG_COLOR = (245, 245, 245)
 GROUND_COLOR = (80, 80, 80)
 GRAVITY, JUMP_FORCE = 0.6, -14
 HIGH_SCORE_FILE = "dino_highscore.txt"
-
+reward_popups = []
 
 def dino_tint(on_ground):
     """Return an (r, g, b) colour override for the dino based on whether it's on the ground, or None for the default green."""
-    pass
+    if on_ground:
+        return (83, 141, 78)
+    else:
+        return (40, 150, 255)
 
 
 def on_obstacle_passed(obstacle, score):
-    """Called once, the frame an obstacle finishes scrolling past the dino. Add a sound or a combo counter here."""
-    pass
+    reward_popups.append({
+        "x": obstacle.rect.centerx,
+        "y": obstacle.rect.top - 20,
+        "timer": 45
+    })
 
 
 def max_jumps():
     """Return how many jumps the dino gets before it must land again (2 for a double jump), or None for the default of 1."""
-    pass
+def max_jumps():
+    return 2    
 
 
 def load_high_score():
@@ -98,6 +105,7 @@ class Game:
     def __init__(self):
         self.font = pygame.font.Font(None, 28)
         self.big_font = pygame.font.Font(None, 48)
+        self.reward_font = pygame.font.Font(None, 28)
         self.high_score = load_high_score()
         self.reset()
 
@@ -109,6 +117,7 @@ class Game:
         self.spawn_timer = 0
         self.spawn_interval = 90
         self.state = "wait"
+        reward_popups.clear()
 
     def start_or_jump(self):
         if self.state == "lose":
@@ -122,11 +131,24 @@ class Game:
         if self.state != "play":
             return
         self.dino.update(GROUND_Y)
+        
+        # Update reward popups
+        for popup in reward_popups[:]:
+            popup["y"] -= 1
+            popup["timer"] -= 1
+
+            if popup["timer"] <= 0:
+                reward_popups.remove(popup)
+
+        # Spawn obstacles
         self.spawn_timer += 1
         if self.spawn_timer >= self.spawn_interval:
-            self.obstacles.append(Obstacle(WIDTH + 10, GROUND_Y, self.speed))
+            self.obstacles.append(
+                Obstacle(WIDTH + 10, GROUND_Y, self.speed)
+            )
             self.spawn_timer = 0
             self.spawn_interval = random.randint(55, 110)
+
 
         hit = False
         for obs in self.obstacles:
@@ -141,9 +163,9 @@ class Game:
         if hit:
             self.state = "lose"
             current = self.score // 10
-            if self.high_score > current:
-                self.high_score = current
-                save_high_score(self.high_score)
+            if current > self.high_score:
+             self.high_score = current
+             save_high_score(self.high_score)
             return
 
         self.score += 1
@@ -154,8 +176,15 @@ class Game:
         screen.fill(BG_COLOR)
         pygame.draw.line(screen, GROUND_COLOR, (0, GROUND_Y), (WIDTH, GROUND_Y), 3)
         self.dino.draw(screen)
+        
         for obs in self.obstacles:
             obs.draw(screen)
+
+        # Draw reward popups
+        for popup in reward_popups:
+            text = self.reward_font.render("+1", True, (0, 180, 0))
+            screen.blit(text, (popup["x"], popup["y"]))
+
 
         score_surf = self.font.render(f"Score: {self.score // 10}   Best: {self.high_score}", True, (50, 50, 50))
         screen.blit(score_surf, (WIDTH - 260, 20))
